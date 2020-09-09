@@ -1,0 +1,126 @@
+# I derived the codes from https://machinelearningmastery.com/machine-learning-in-r-step-by-step/
+# machine learning tutorial. However, I used my own dataset, so I had to change certain parts of the script
+
+rm(list=ls(all=TRUE)) #Clears previous work in R
+
+#install.packages("caret")
+#install.packages("caret", dependencies=c("Depends", "Suggests"))
+library(caret)
+
+# Change this to match where ever your shapefiles are at. 
+setwd("C:/Users/SRCS IT/Desktop/ML Training")
+
+library(readr)
+oilspatial <- read_csv("C:/Users/SRCS IT/Desktop/ML Training/oilspatial.csv")
+View(oilspatial)
+
+oilspatial$taxon2 <- as.factor(oilspatial$taxon2)
+
+#Validation dataset
+# create a list of 80% of the rows in the original dataset we can use for training
+validation_index <- createDataPartition(oilspatial$taxon2, p=0.80, list=FALSE)
+
+# select 20% of the data for validation
+validation <- oilspatial[-validation_index,]
+
+# use the remaining 80% of data to training and testing the models
+dataset <- oilspatial[validation_index,]
+
+# dimensions of dataset
+dim(dataset)
+
+# list types for each attribute
+sapply(dataset, class)
+
+# summarize the class distribution
+percentage <- prop.table(table(dataset$taxa)) * 100
+cbind(freq=table(dataset$taxa), percentage=percentage)
+
+summary(dataset)
+
+
+# split input and output
+x <- dataset[,8:20]
+y = dataset$taxon2
+
+
+# boxplot for each attribute on one image
+par(mfrow=c(4,4))
+for(i in 1:13) { #the number of variables to be plotted
+  boxplot(x[,i], main=names(x)[i])
+}
+
+# Simple Bar Plot
+par(mfrow=c(1,1))
+counts <- table(y)
+barplot(counts, main="Sample count",
+        xlab="Species")
+
+featurePlot(x = dataset[,10:12], 
+            y = dataset$taxon2, 
+            plot = "ellipse")
+
+# box and whisker plots for each attribute
+featurePlot(x=x, y=y, plot="box")
+
+
+# density plots for each attribute by class value
+scales <- list(x=list(relation="free"), y=list(relation="free"))
+featurePlot(x=x, y=y, plot="density", scales=scales,
+            auto.key = list(columns = 3)) 
+
+# Run algorithms using 10-fold cross validation
+control <- trainControl(method="cv", number=10)
+metric <- "Accuracy"
+
+#We don't know which algorithms would be good on this problem or what configurations to use. 
+#We get an idea from the plots that some of the classes are partially linearly separable in some dimensions, 
+#so we are expecting generally good results.
+
+#Let's evaluate 5 different algorithms:
+  
+#Linear Discriminant Analysis (LDA)
+#Classification and Regression Trees (CART).
+#k-Nearest Neighbors (kNN).
+#Support Vector Machines (SVM) with a linear kernel.
+#Random Forest (RF)
+
+#his is a good mixture of simple linear (LDA), nonlinear (CART, kNN) and complex nonlinear methods (SVM, RF). 
+#We reset the random number seed before reach run to ensure that the evaluation of each algorithm is performed 
+#using exactly the same data splits. It ensures the results are directly comparable.
+
+# Brian's note: LDA doesn't seem to work for this data set, 
+
+#Let's build our five models:
+  
+# a) linear algorithms
+#set.seed(7)
+fit.lda <- train(taxon2~., data=dataset, method="lda", metric=metric, trControl=control)
+# b) nonlinear algorithms
+# CART
+set.seed(100)
+fit.cart <- train(taxon2~., data=dataset, method="rpart", metric=metric, trControl=control)
+# kNN
+set.seed(100)
+fit.knn <- train(taxon2~., data=dataset, method="knn", metric=metric, trControl=control)
+# c) advanced algorithms
+# SVM
+set.seed(100)
+fit.svm <- train(taxon2~., data=dataset, method="svmRadial", metric=metric, trControl=control)
+# Random Forest
+set.seed(100)
+fit.rf <- train(taxon2~., data=dataset, method="rf", metric=metric, trControl=control)
+
+#summarize accuracy of models
+results <- resamples(list(lda=fit.lda, cart=fit.cart, knn=fit.knn, svm=fit.svm, rf=fit.rf))
+summary(results)
+
+# compare accuracy of models
+dotplot(results)
+
+print(fit.rf)
+
+# estimate skill of rf on the validation dataset
+predictions <- predict(fit.rf, validation)
+confusionMatrix(predictions, validation$taxon2)
+

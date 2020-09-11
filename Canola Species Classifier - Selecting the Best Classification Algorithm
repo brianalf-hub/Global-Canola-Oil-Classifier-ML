@@ -124,3 +124,4 @@ print(fit.rf)
 predictions <- predict(fit.rf, validation)
 confusionMatrix(predictions, validation$taxon2)
 
+
